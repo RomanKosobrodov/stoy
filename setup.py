@@ -756,7 +756,7 @@ cmdclass["pack_labext"] = pack_labext
 cmdclass.pop("develop")
 
 
-with open("sagemaker_studio_autoshutdown-0.1.5/README.md", "r") as fh:
+with open("README.md", "r") as fh:
     long_description = fh.read()
 
 
