@@ -17,6 +17,7 @@ import time
 import traceback
 from contextlib import suppress
 from datetime import datetime
+import os
 
 from notebook.utils import url_path_join
 
@@ -28,7 +29,7 @@ class IdleChecker(object):
         self.count = 0
         self.task = None
         self.errors = None
-        self.idle_time = 7200  # default idle time in seconds
+        self.idle_time = 60 * int(os.environ.get("SAGEMAKER_TIMEOUT_MINUTES", "60"))
         self.ignore_connections = True
         self.tornado_client = None
         self._xsrf_token = None
