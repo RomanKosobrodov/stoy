@@ -776,6 +776,7 @@ setup_args = dict(
     cmdclass=cmdclass,
     packages=setuptools.find_packages(),
     install_requires=["boto3>=1.10.44"],
+    scripts=['bin/set-timeout'],
     zip_safe=False,
     include_package_data=True,
     license="BSD-3-Clause",
