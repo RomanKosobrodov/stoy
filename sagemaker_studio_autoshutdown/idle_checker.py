@@ -41,16 +41,17 @@ class IdleChecker(object):
     # Function to GET the xsrf token
     async def fetch_xsrf_token(self):
         url = url_path_join(self.app_url, self.base_url, "tree")
-        self.log.info("URL: " + str(url))
+        self.log.info(f"stoy: url='{str(url)}'")
         response = await self.tornado_client.fetch(url, method="GET")
-        self.log.info("response headers: " + str(response.headers))
+        self.log.info("stoy: response headers: " + str(response.headers))
         if "Set-Cookie" in response.headers:
             return response.headers["Set-Cookie"].split(";")[0].split("=")[1]
-
+        self.log.warning("stoy: 'Set-Cookie' is not in response header")
         return None
 
     # Invoke idle_checks() function
     async def run_idle_checks(self):
+        self.log.debug("stoy: starting idle check")
         while True:
             self.count += 1
             await asyncio.sleep(self.interval)
@@ -68,6 +69,7 @@ class IdleChecker(object):
         self.base_url = base_url
         self.log = log_handler
         self.keep_terminals = keep_terminals
+        self.log.debug("stoy: starting")
 
         if not self._running:
             self.count += 1
@@ -77,6 +79,7 @@ class IdleChecker(object):
     async def stop(self):
         if self._running:
             self._running = False
+            self.log.debug("stoy: stopping")
             if self.task:
                 self.task.cancel()
                 with suppress(asyncio.CancelledError):
@@ -92,19 +95,19 @@ class IdleChecker(object):
     def is_idle(self, last_activity, seconds=False):
         last_activity = datetime.strptime(last_activity, "%Y-%m-%dT%H:%M:%S.%fz")
         self.log.info(
-            "comparing idle time limit "
+            "stoy: comparing idle time limit "
             + str(self.idle_time)
             + " and elapsed time "
             + str((datetime.now() - last_activity).total_seconds())
         )
         if (datetime.now() - last_activity).total_seconds() > self.idle_time:
             self.log.info(
-                "Notebook is idle. Last activity time = " + str(last_activity)
+                "stoy: Notebook is idle. Last activity time = " + str(last_activity)
             )
             return True
         else:
             self.log.info(
-                "Notebook is not idle. Last activity time = " + str(last_activity)
+                "stoy: Notebook is not idle. Last activity time = " + str(last_activity)
             )
             return False
 
@@ -113,7 +116,7 @@ class IdleChecker(object):
         url = url_path_join(self.app_url, self.base_url, "api", "sessions")
         response = await self.tornado_client.fetch(url, method="GET")
         sessions = json.loads(response.body)
-        self.log.info(" Kernel Session is = " + str(sessions))
+        self.log.info("stoy: Kernel Session is = " + str(sessions))
         return sessions
 
     # Function to get the list of System Terminals
@@ -128,10 +131,10 @@ class IdleChecker(object):
         url = url_path_join(self.app_url, self.base_url, "sagemaker", "api", "apps")
         response = await self.tornado_client.fetch(url, method="GET")
         apps = json.loads(response.body)
-        self.log.info(" Running App name is = " + str(apps))
+        self.log.info("stoy: Running App name is = " + str(apps))
         return apps
 
-    # Function to build app information ( kernel sessions and image terminals)
+    # Function to build app information (kernel sessions and image terminals)
     async def build_app_info(self):
         apps = await self.get_apps()
         apps_info = {}
@@ -168,22 +171,20 @@ class IdleChecker(object):
 
     # Function to delete a kernel session
     async def delete_session(self, session):
-        headers = {}
-        headers["X-Xsrftoken"] = self._xsrf_token
-        headers["Cookie"] = "_xsrf=" + self._xsrf_token
+        headers = {"X-Xsrftoken": self._xsrf_token,
+                   "Cookie": f"_xsrf={self._xsrf_token}"}
         kernel_id = session["kernel"]["id"]
         self.log.info("deleting kernel : " + str(kernel_id))
         url = url_path_join(
             self.app_url, self.base_url, "api", "kernels", str(kernel_id)
         )
         deleted = await self.tornado_client.fetch(url, method="DELETE", headers=headers)
-        self.log.info("Delete kernel response: " + str(deleted))
+        self.log.info("stoy: Delete kernel response: " + str(deleted))
 
     # Function to delete an application
     async def delete_application(self, app_id):
-        headers = {}
-        headers["X-Xsrftoken"] = self._xsrf_token
-        headers["Cookie"] = "_xsrf=" + self._xsrf_token
+        headers = {"X-Xsrftoken": self._xsrf_token,
+                   "Cookie": f"_xsrf={self._xsrf_token}"}
         self.log.info("deleting app : " + str(app_id))
         url = url_path_join(
             self.app_url, self.base_url, "sagemaker", "api", "apps", str(app_id)
@@ -191,7 +192,7 @@ class IdleChecker(object):
         deleted_apps = await self.tornado_client.fetch(
             url, method="DELETE", headers=headers
         )
-        self.log.info("Delete App response: " + str(deleted_apps))
+        self.log.info("stoy: Delete App response: " + str(deleted_apps))
         if deleted_apps.code == 204 or deleted_apps.code == 200:
             self.inservice_apps.pop(app_id, None)
 
@@ -199,7 +200,7 @@ class IdleChecker(object):
     def check_notebook(self, notebook):
         terminate = True
         if notebook["kernel"]["execution_state"] == "idle":
-            self.log.info("found idle session:" + str(notebook))
+            self.log.info("stoy: Found idle session:" + str(notebook))
             if not self.ignore_connections:
                 if notebook["kernel"]["connections"] == 0:
                     if not self.is_idle(notebook["kernel"]["last_activity"]):
@@ -220,7 +221,7 @@ class IdleChecker(object):
         deleted_apps = list(set(inservice_apps.keys()).difference(set(apps_info.keys())))
         for deleted_app in deleted_apps:
             inservice_apps.pop(deleted_app, None)
-            self.log.info("inservice app not inservice anymore : " + str(deleted_app))
+            self.log.info("stoy: inservice app not inservice anymore : " + str(deleted_app))
 
         for app_name, app in apps_info.items():
             num_sessions = len(app["sessions"])
@@ -238,7 +239,7 @@ class IdleChecker(object):
                 # Check if app is active and kill
                 # Check if the current app is part of the in service apps
                 if app_name not in inservice_apps:
-                    # Regsiter a new inservice app
+                    # Register a new inservice app
                     inservice_apps[app_name] = time.time()
 
                 else:
@@ -250,7 +251,7 @@ class IdleChecker(object):
 
             # elif num_sessions < 1 and num_terminals > 0 and self.keep_terminals == True:
             elif num_sessions < 1 and num_terminals > 0 and self.keep_terminals:
-                self.log.info("keep terminals flag is True. Not killing the terminals.")
+                self.log.info("stoy: Keep terminals flag is True. Not killing the terminals.")
                 pass
 
             elif (
@@ -259,19 +260,19 @@ class IdleChecker(object):
                 and num_terminals > 0
                 and not self.keep_terminals
             ):
-                self.log.info("keep terminals flag: " + str(self.keep_terminals))
+                self.log.info("stoy: Keep terminals flag: " + str(self.keep_terminals))
                 # Wait for the inservice app
-                self.log.info("New inservice app found : " + str(app_name))
+                self.log.info("stoy: New inservice app found : " + str(app_name))
 
                 # Check if the current app is part of the in service apps
                 if app_name not in inservice_apps:
-                    # Regsiter a new inservice app
+                    # Register a new inservice app
                     inservice_apps[app_name] = time.time()
 
                 else:
                     if int(time.time() - inservice_apps[app_name]) > self.idle_time:
                         self.log.info(
-                            "Keepalive time for terminal reached : " + str(app_name)
+                            "stoy: Keepalive time for terminal reached : " + str(app_name)
                         )
                         await self.delete_application(app_name)
 
