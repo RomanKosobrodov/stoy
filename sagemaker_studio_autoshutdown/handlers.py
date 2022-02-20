@@ -19,11 +19,20 @@ from notebook.base.handlers import APIHandler
 from notebook.utils import url_path_join
 
 from .idle_checker import IdleChecker
+import logging.handlers
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 base_url = None
 
-idle_checker = IdleChecker()
+
+handler = logging.handlers.WatchedFileHandler("/var/log/stoy.log")
+formatter = logging.Formatter(logging.BASIC_FORMAT)
+handler.setFormatter(formatter)
+root_log = logging.getLogger()
+root_log.setLevel("DEBUG")
+root_log.addHandler(handler)
+
+idle_checker = IdleChecker(logger=root_log)
 
 
 class SettingsHandler(APIHandler):
