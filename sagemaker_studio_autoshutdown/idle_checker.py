@@ -22,14 +22,14 @@ import os
 from notebook.utils import url_path_join
 
 
-class IdleChecker:
+class IdleChecker(object):
     def __init__(self, logger):
         self.interval = 10  # frequency for checking idle sessions in seconds
         self._running = False
         self.count = 0
         self.task = None
         self.errors = None
-        self.idle_time = 60 * int(os.environ.get("SAGEMAKER_TIMEOUT_MINUTES", "60"))
+        self.idle_time = 60 * int(os.environ.get("SAGEMAKER_TIMEOUT_MINUTES", "1"))
         self.ignore_connections = True
         self.tornado_client = None
         self._xsrf_token = None
@@ -38,6 +38,7 @@ class IdleChecker:
         self.keep_terminals = False
         self.inservice_apps = {}
         self.logger = logger
+        self.logger.debug(f"instance created with timeout {self.idle_time} min")
 
     # Function to GET the xsrf token
     async def fetch_xsrf_token(self):

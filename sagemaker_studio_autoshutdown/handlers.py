@@ -31,7 +31,7 @@ if not os.path.isdir(stoy_dir):
     os.mkdir(stoy_dir)
 log_file = os.path.join(stoy_dir, "stoy.log")
 handler = logging.handlers.WatchedFileHandler(log_file)
-formatter = logging.Formatter(logging.BASIC_FORMAT)
+formatter = logging.Formatter(fmt="%(asctime)s %(levelname)s %(process)d %(processName)s %(message)s")
 handler.setFormatter(formatter)
 root_log = logging.getLogger()
 root_log.setLevel("DEBUG")
