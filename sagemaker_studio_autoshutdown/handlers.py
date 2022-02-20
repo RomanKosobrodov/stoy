@@ -20,12 +20,17 @@ from notebook.utils import url_path_join
 
 from .idle_checker import IdleChecker
 import logging.handlers
+import os
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 base_url = None
 
-
-handler = logging.handlers.WatchedFileHandler("/var/log/stoy.log")
+home = os.path.expanduser("~")
+stoy_dir = os.path.join(home, ".stoy")
+if not os.path.isdir(stoy_dir):
+    os.mkdir(stoy_dir)
+log_file = os.path.join(stoy_dir, "stoy.log")
+handler = logging.handlers.WatchedFileHandler(log_file)
 formatter = logging.Formatter(logging.BASIC_FORMAT)
 handler.setFormatter(formatter)
 root_log = logging.getLogger()
