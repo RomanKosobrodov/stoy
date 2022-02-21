@@ -1,0 +1,8 @@
+{
+    "ServerApp": {
+        "jpserver_extensions": {
+            "sagemaker_studio_autoshutdown": true
+        }
+    }
+}
+
