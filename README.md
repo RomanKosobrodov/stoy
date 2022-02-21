@@ -1,16 +1,13 @@
 # stoy
-Sagemaker Studio Auto Shutdown extension.
+Application for shutting down kernels and terminals in Jupyter Lab after they were idle for a specified period of time.
+Jupyter Lab itself is terminated when no kernels and terminals were open for some time.
 
-## Installation
+# Installation
 
-Python development package is required to build the extension. The example below is for CentOS. 
-On other operating systems the package name can differ.
-
-Set the timeout in minutes `SAGEMAKER_TIMEOUT_MINUTES` if you want to change the default value of 60 min.
-
-```bash
-yum install -y python36-devel.x86_64
-SAGEMAKER_TIMEOUT_MINUTES=2
-pip install git+https://github.com/RomanKosobrodov/stoy.git
-jupyter serverextension enable --py sagemaker_studio_autoshutdown
+# Usage
+Define the three timeouts, in seconds, as demonstrated in the example below:
+```commandline
+stoy --kernel-idle=3600 --terminal-idel=3600 --server-idle=1800
 ```
+
+
