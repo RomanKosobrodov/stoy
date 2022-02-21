@@ -28,6 +28,7 @@ setuptools.setup(
     package_data={
         'stoy': ["VERSION"]
     },
+    scripts=['bin/stoy'],
     classifiers=[
         "Programming Language :: Python :: 3",
         "Operating System :: OS Independent"

@@ -129,7 +129,7 @@ async def run(url, token, terminal_timeout, kernel_timeout, server_timeout):
             await asyncio.sleep(SLEEP_SECONDS)
     logging.debug("done")
 
-if __name__ == "__main__":
+def main():
     args = parse_arguments()
     logging.basicConfig(filename=prepare_log(),
                         filemode="w",
@@ -148,3 +148,7 @@ if __name__ == "__main__":
     except RuntimeError as e:
         logging.error(f"Unknown error: {str(e)}")
         exit(3)
+
+
+if __name__ == "__main__":
+    main()
