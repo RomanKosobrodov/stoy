@@ -3,6 +3,10 @@ Application for shutting down kernels and terminals in Jupyter Lab after they we
 Jupyter Lab itself is terminated when no kernels and terminals were open for some time.
 
 # Installation
+Install with `pip`
+```commandline
+pip install stoy
+```
 
 # Usage
 Define the three timeouts, in seconds, as demonstrated in the example below:
