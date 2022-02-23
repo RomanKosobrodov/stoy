@@ -23,6 +23,7 @@ setuptools.setup(
     description="Jupyter Server auto stop",
     license="MIT",
     long_description=long_description,
+    long_description_content_type="text/markdown",
     url="https://github.com/RomanKosobrodov/stoy",
     packages=setuptools.find_packages(),
     package_data={
