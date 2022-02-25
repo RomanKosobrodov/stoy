@@ -78,7 +78,9 @@ def get_token(jupyter_path):
 def inactive_seconds(entity):
     now = datetime.datetime.utcnow()
     la = entity["last_activity"]
-    dt = datetime.datetime.fromisoformat(la[:-1])
+    # dt = datetime.datetime.fromisoformat(la[:-1])
+    fmt = "%Y-%m-%dT%H:%M:%S"
+    dt = datetime.datetime.strptime(la[:-8], fmt)
     delta = now - dt
     return delta.total_seconds()
 
