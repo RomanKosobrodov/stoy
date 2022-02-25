@@ -56,10 +56,10 @@ def prepare_log():
 def get_token(jupyter_path):
     pattern = "?token="
     running = False
+    cmd = "jupyter"
+    if len(jupyter_path) > 0:
+        cmd = os.path.join(jupyter_path, cmd)
     while not running:
-        cmd = "jupyter"
-        if len(jupyter_path) > 0:
-            cmd = os.path.join(jupyter_path, cmd)
         result = subprocess.run([cmd, "lab", "list"], stdout=subprocess.PIPE)
         if result.returncode != 0:
             logging.error(f"Command 'jupyter lab list' failed with exit code {result.returncode}")
