@@ -143,11 +143,12 @@ async def run(url, token, terminal_timeout, kernel_timeout, server_timeout, shut
                 inactive_since = None
 
             await asyncio.sleep(SLEEP_SECONDS)
-    logging.debug("done")
+
     if shutdown:
         logging.debug("shutting down the instance")
-        time.sleep(1)
-        r = subprocess.run(["sudo", "shutdown", "-h" "now"])
+        subprocess.Popen(["shutdown"])
+
+    logging.debug("done")
 
 
 def main():
