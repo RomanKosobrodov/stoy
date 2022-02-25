@@ -146,6 +146,7 @@ async def run(url, token, terminal_timeout, kernel_timeout, server_timeout, shut
     logging.debug("done")
     if shutdown:
         logging.debug("shutting down the instance")
+        time.sleep(1)
         r = subprocess.run(["sudo", "shutdown", "-h" "now"])
 
 
@@ -162,7 +163,8 @@ def main():
                                     token=jupyter_token,
                                     kernel_timeout=args.kernel_idle,
                                     terminal_timeout=args.terminal_idle,
-                                    server_timeout=args.server_idle))
+                                    server_timeout=args.server_idle,
+                                    shutdown=args.shutdown))
     except KeyboardInterrupt:
         logging.info("terminated by the user")
     except RuntimeError as e:
