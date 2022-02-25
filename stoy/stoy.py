@@ -31,6 +31,16 @@ def parse_arguments():
                         required=False,
                         type=float,
                         default=1800.0)
+    parser.add_argument("--path", "-p",
+                        help="Path to directory containing jupyter lab. Required if jupyter lab is not in system path.",
+                        required=False,
+                        type=str,
+                        default="")
+    parser.add_argument("--shutdown",
+                        help="Shutdown the machine",
+                        action="store_true",
+                        default=False)
+
     return parser.parse_args()
 
 
@@ -43,11 +53,17 @@ def prepare_log():
     return log_file
 
 
-def get_token():
+def get_token(jupyter_path):
     pattern = "?token="
     running = False
     while not running:
-        result = subprocess.run(["jupyter", "lab", "list"], stdout=subprocess.PIPE)
+        cmd = "jupyter"
+        if len(jupyter_path) > 0:
+            cmd = os.path.join(jupyter_path, cmd)
+        result = subprocess.run([cmd, "lab", "list"], stdout=subprocess.PIPE)
+        if result.returncode != 0:
+            logging.error(f"Command 'jupyter lab list' failed with exit code {result.returncode}")
+            exit(1)
         msg = result.stdout.decode("utf-8")
         loc = msg.find(pattern)
         if loc == -1:
@@ -67,7 +83,7 @@ def inactive_seconds(entity):
     return delta.total_seconds()
 
 
-async def run(url, token, terminal_timeout, kernel_timeout, server_timeout):
+async def run(url, token, terminal_timeout, kernel_timeout, server_timeout, shutdown):
     async with aiohttp.ClientSession() as session:
         running = True
         terminal_count = 0
@@ -117,10 +133,10 @@ async def run(url, token, terminal_timeout, kernel_timeout, server_timeout):
                             logging.debug(f"jupyter server terminated")
                         else:
                             logging.error(f"failed to terminate jupyter server.`kill` exited with code {r.returncode}")
-                            exit(2)
+                            exit(3)
                     else:
                         logging.error("Unable to find PID of jupyter server")
-                        exit(1)
+                        exit(2)
                     running = False
 
             if kernel_count > 0 or terminal_count > 0:
@@ -128,6 +144,10 @@ async def run(url, token, terminal_timeout, kernel_timeout, server_timeout):
 
             await asyncio.sleep(SLEEP_SECONDS)
     logging.debug("done")
+    if shutdown:
+        logging.debug("shutting down the instance")
+        r = subprocess.run(["sudo", "shutdown", "-h" "now"])
+
 
 def main():
     args = parse_arguments()
@@ -135,7 +155,7 @@ def main():
                         filemode="w",
                         format="%(asctime)s %(levelname)s %(message)s",
                         level=logging.DEBUG)
-    jupyter_token = get_token()
+    jupyter_token = get_token(args.path)
     loop = asyncio.get_event_loop()
     try:
         loop.run_until_complete(run(url=URL,
