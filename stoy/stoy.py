@@ -1,27 +1,37 @@
 import os
 import aiohttp
 import asyncio
-import subprocess
-import time
 import datetime
 import logging
 import argparse
+import json
+import boto3
 
 
-URL = "http://localhost:8888"
+URL = "https://localhost:8443"
+RESOURCE_METADATA = "/opt/ml/metadata/resource-metadata.json"
 SLEEP_SECONDS = 5
 
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Automatically stop jupyter kernels and the server when idle for"
                                      " a specified period of time")
+    parser.add_argument("--version", "-v",
+                        help="Print version number",
+                        action="store_true",
+                        default=False)
+    parser.add_argument("--url", "-u",
+                        help=f"Jupyter URL. Default is '{URL}'",
+                        required=False,
+                        type=str,
+                        default=URL)
+    parser.add_argument("--token", "-t",
+                        help="Jupyter token",
+                        required=False,
+                        type=str,
+                        default="")
     parser.add_argument("--kernel-idle", "-k",
                         help="Number of seconds for the kernel to remain idle before it is deleted. Default is 3600.",
-                        required=False,
-                        type=float,
-                        default=3600.0)
-    parser.add_argument("--terminal-idle", "-t",
-                        help="Number of seconds for the terminal to remain idle before it is deleted. Default is 3600.",
                         required=False,
                         type=float,
                         default=3600.0)
@@ -31,148 +41,126 @@ def parse_arguments():
                         required=False,
                         type=float,
                         default=1800.0)
-    parser.add_argument("--path", "-p",
-                        help="Path to directory containing jupyter lab. Required if jupyter lab is not in system path.",
+    parser.add_argument("--log", "-l",
+                        help="Path to log directory. If not provided the logs are saved in ~/.stoy",
                         required=False,
                         type=str,
                         default="")
-    parser.add_argument("--shutdown",
-                        help="Shutdown the machine",
-                        action="store_true",
-                        default=False)
 
     return parser.parse_args()
 
 
-def prepare_log():
-    home = os.path.expanduser("~")
-    log_dir = os.path.join(home, ".stoy")
-    if not os.path.isdir(log_dir):
-        os.mkdir(log_dir)
+def prepare_log(log_directory):
+    if len(log_directory) > 0 and os.path.isdir(log_directory):
+        log_dir = log_directory
+    else:
+        home = os.path.expanduser("~")
+        log_dir = os.path.join(home, ".stoy")
+        if not os.path.isdir(log_dir):
+            os.mkdir(log_dir)
     log_file = os.path.join(log_dir, "stoy.log")
     return log_file
-
-
-def get_token(jupyter_path):
-    pattern = "?token="
-    running = False
-    cmd = "jupyter"
-    if len(jupyter_path) > 0:
-        cmd = os.path.join(jupyter_path, cmd)
-    while not running:
-        result = subprocess.run([cmd, "lab", "list"], stdout=subprocess.PIPE)
-        if result.returncode != 0:
-            logging.error(f"Command 'jupyter lab list' failed with exit code {result.returncode}")
-            exit(1)
-        msg = result.stdout.decode("utf-8")
-        loc = msg.find(pattern)
-        if loc == -1:
-            time.sleep(5.0)
-            logging.debug("Jupyter lab server is not running")
-            continue
-        t, *rest = msg[loc:].split(" ")
-        logging.debug(t[1:])
-        return t[1:]
 
 
 def inactive_seconds(entity):
     now = datetime.datetime.utcnow()
     la = entity["last_activity"]
-    # dt = datetime.datetime.fromisoformat(la[:-1])
     fmt = "%Y-%m-%dT%H:%M:%S"
     dt = datetime.datetime.strptime(la[:-8], fmt)
     delta = now - dt
     return delta.total_seconds()
 
 
-async def run(url, token, terminal_timeout, kernel_timeout, server_timeout, shutdown):
+def get_notebook_name(filename):
+    if not os.path.isfile(filename):
+        return None
+    with open(filename, "r") as f:
+        meta = json.load(f)
+    return meta["ResourceName"]
+
+
+async def run(url, kernel_timeout, server_timeout, token=""):
     async with aiohttp.ClientSession() as session:
         running = True
-        terminal_count = 0
-        kernel_count = 0
         inactive_since = None
+        params = dict()
+        if len(token) > 0:
+            params["token"] = token
+            logging.debug(f'using token "{token}"')
         while running:
-            async with session.get(f"{url}/api/terminals", params=token) as resp:
-                terminals = await resp.json()
-                terminal_count = len(terminals)
-                for terminal in terminals:
-                    name = terminal['name']
-                    seconds = inactive_seconds(terminal)
-                    logging.debug(f"terminal {name} inactive for {seconds} s")
-                    if seconds > terminal_timeout:
-                        async with session.delete(f"{url}/api/terminals/{name}", params=token) as r2:
-                            if r2.status == 204:
-                                logging.debug(f"terminal {name} deleted")
-                            else:
-                                logging.error(f"terminal {name} deletion failed with status {r2.status}")
+            try:
+                kernels_url = f"{url}/api/kernels"
+                async with session.get(kernels_url, params=params, ssl=False) as resp:
+                    if resp.status != 200:
+                        logging.error(f'GET "{kernels_url}" returned {resp.status}')
+                        exit(2)
+                    kernels = await resp.json()
+                    kernel_count = len(kernels)
+                    for kernel in kernels:
+                        kid = kernel["id"]
+                        seconds = inactive_seconds(kernel)
+                        logging.debug(f"kernel {kid} inactive for {seconds} s")
+                        if seconds > kernel_timeout:
+                            async with session.delete(f"{url}/api/kernels/{kid}", params=params, ssl=False) as r2:
+                                if r2.status == 204:
+                                    logging.debug(f"kernel {kid} deleted")
+                                else:
+                                    r = await r2.json()
+                                    logging.error(f"kernel {kid} deletion failed with status {r2.status}: '{r}'")
+            except aiohttp.client_exceptions.ClientConnectorError:
+                logging.info(f"connection to '{url}/api/kernels' failed")
+                await asyncio.sleep(SLEEP_SECONDS)
+                continue
 
-            async with session.get(f"{url}/api/kernels", params=token) as resp:
-                kernels = await resp.json()
-                kernel_count = len(kernels)
-                for kernel in kernels:
-                    kid = kernel["id"]
-                    seconds = inactive_seconds(kernel)
-                    logging.debug(f"kernel {kid} inactive for {seconds} s")
-                    if seconds > kernel_timeout:
-                        async with session.delete(f"{url}/api/kernels/{kid}", params=token) as r2:
-                            if r2.status == 204:
-                                logging.debug(f"kernel {kid} deleted")
-                            else:
-                                logging.error(f"kernel {kid} deletion failed with status {r2.status}")
-            if kernel_count == 0 and terminal_count == 0:
+            if kernel_count == 0:
                 if inactive_since is None:
                     inactive_since = datetime.datetime.utcnow()
-                    logging.debug("no active kernels or terminals")
+                    logging.debug("no active kernels")
                 dt = datetime.datetime.utcnow() - inactive_since
                 if dt.total_seconds() > server_timeout:
-                    logging.debug("Shutting down jupyter server")
-                    r = subprocess.run(["pgrep", "jupyter"], stdout=subprocess.PIPE)
-                    pid, *rest = r.stdout.decode().split("\n")
-                    if len(pid) > 0:
-                        logging.debug(f"jupyter server PID={pid}")
-                        r = subprocess.run(["kill", pid])
-                        if r.returncode == 0:
-                            logging.debug(f"jupyter server terminated")
-                        else:
-                            logging.error(f"failed to terminate jupyter server.`kill` exited with code {r.returncode}")
-                            exit(3)
-                    else:
-                        logging.error("Unable to find PID of jupyter server")
-                        exit(2)
-                    running = False
-
-            if kernel_count > 0 or terminal_count > 0:
+                    name = get_notebook_name(filename=RESOURCE_METADATA)
+                    if name is None:
+                        logging.error(f'unable to read notebook name from "{RESOURCE_METADATA}"')
+                        break
+                    logging.debug(f"shutting down instance '{name}'")
+                    client = boto3.client("sagemaker")
+                    client.stop_notebook_instance(NotebookInstanceName=name)
+                    break
+            else:
                 inactive_since = None
 
             await asyncio.sleep(SLEEP_SECONDS)
-
-    if shutdown:
-        logging.debug("shutting down the instance")
-        subprocess.Popen(["shutdown"])
 
     logging.debug("done")
 
 
 def main():
     args = parse_arguments()
-    logging.basicConfig(filename=prepare_log(),
+
+    if args.version:
+        with open(os.path.join(os.path.dirname(__file__), 'VERSION')) as version_file:
+            v = version_file.read().strip()
+            print(f"version {v}")
+            exit(0)
+
+    log_file = prepare_log(args.log)
+    print(f"log file: '{log_file}'")
+    logging.basicConfig(filename=log_file,
                         filemode="w",
                         format="%(asctime)s %(levelname)s %(message)s",
                         level=logging.DEBUG)
-    jupyter_token = get_token(args.path)
+    logging.debug("started")
     loop = asyncio.get_event_loop()
     try:
-        loop.run_until_complete(run(url=URL,
-                                    token=jupyter_token,
+        loop.run_until_complete(run(url=args.url,
                                     kernel_timeout=args.kernel_idle,
-                                    terminal_timeout=args.terminal_idle,
                                     server_timeout=args.server_idle,
-                                    shutdown=args.shutdown))
+                                    token=args.token))
     except KeyboardInterrupt:
         logging.info("terminated by the user")
     except RuntimeError as e:
         logging.error(f"Unknown error: {str(e)}")
-        exit(3)
+        exit(1)
 
 
 if __name__ == "__main__":

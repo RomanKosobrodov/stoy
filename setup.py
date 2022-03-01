@@ -29,11 +29,11 @@ setuptools.setup(
     package_data={
         'stoy': ["VERSION"]
     },
-    scripts=['bin/stoy'],
+    scripts=["bin/stoy", "bin/generate-token"],
     classifiers=[
         "Programming Language :: Python :: 3",
         "Operating System :: OS Independent"
     ],
     python_requires='>=3.6',
-    install_requires=["aiohttp>=3.8"]
+    install_requires=["aiohttp>=3.8", "boto3>=1.20"]
 )
