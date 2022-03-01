@@ -7,7 +7,7 @@ The jupyter instance itself is terminated when no kernels were open for some tim
 
 Add the following to `on_start.sh` script of your Sagemaker instance:
 ```commandline
-pip install stoy
+pip3 install stoy
 export TOKEN=`generate-token`
 echo -e '\nc.NotebookApp.token="'$TOKEN'"\n' >> /home/ec2-user/.jupyter/jupyter_notebook_config.py 
 stoy --kernel-idle=3600 --server-idle=1800 --token=$TOKEN --url="https://localhost:8443" --log="/var/log" &

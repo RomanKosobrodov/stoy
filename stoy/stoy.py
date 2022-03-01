@@ -76,7 +76,7 @@ def get_notebook_name(filename):
         return None
     with open(filename, "r") as f:
         meta = json.load(f)
-    return meta["ResourceName"]
+    return meta.get("ResourceName", None)
 
 
 async def run(url, kernel_timeout, server_timeout, token=""):
