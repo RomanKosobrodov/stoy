@@ -87,6 +87,7 @@ async def run(url, kernel_timeout, server_timeout, token=""):
         if len(token) > 0:
             params["token"] = token
             logging.debug(f'using token "{token}"')
+        xsrf = ""
         while running:
             try:
                 kernels_url = f"{url}/api/kernels"
@@ -107,12 +108,13 @@ async def run(url, kernel_timeout, server_timeout, token=""):
                                 if rr.status != 200:
                                     logging.error(f'GET "{tree_url}" returned {resp.status}')
                                     exit(3)
-                                if "Set-Cookie" not in rr.headers:
-                                    logging.error(f"'Set-Cookie' is not in response headers")
-                                    exit(4)
-                                xsrf_str, *rest = rr.headers["Set-Cookie"].split(";")
-                                key, xsrf = xsrf_str.split("=")
-                                logging.debug(f'xsrf="{xsrf}"')
+                                if "Set-Cookie" in rr.headers:
+                                    xsrf_str, *rest = rr.headers["Set-Cookie"].split(";")
+                                    key, xsrf = xsrf_str.split("=")
+                                    logging.debug(f'xsrf="{xsrf}"')
+                                else:
+                                    logging.info(f'"Set-Cookie" is not in response headers. Using xsrf="{xsrf}"')
+
                                 headers = {"X-Xsrftoken": xsrf,
                                            "Cookie": f"_xsrf={xsrf}"}
 
