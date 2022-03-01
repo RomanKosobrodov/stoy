@@ -101,7 +101,25 @@ async def run(url, kernel_timeout, server_timeout, token=""):
                         seconds = inactive_seconds(kernel)
                         logging.debug(f"kernel {kid} inactive for {seconds} s")
                         if seconds > kernel_timeout:
-                            async with session.delete(f"{url}/api/kernels/{kid}", params=params, ssl=False) as r2:
+                            tree_url = f"{url}/tree"
+                            logging.debug(f'fetching xsrf token from "{tree_url}"')
+                            async with session.get(tree_url, ssl=False) as rr:
+                                if rr.status != 200:
+                                    logging.error(f'GET "{tree_url}" returned {resp.status}')
+                                    exit(3)
+                                if "Set-Cookie" not in rr.headers:
+                                    logging.error(f"'Set-Cookie' is not in response headers")
+                                    exit(4)
+                                xsrf_str, *rest = rr.headers["Set-Cookie"].split(";")
+                                key, xsrf = xsrf_str.split("=")
+                                logging.debug(f'xsrf="{xsrf}"')
+                                headers = {"X-Xsrftoken": xsrf,
+                                           "Cookie": f"_xsrf={xsrf}"}
+
+                            async with session.delete(f"{url}/api/kernels/{kid}",
+                                                      params=params,
+                                                      headers=headers,
+                                                      ssl=False) as r2:
                                 if r2.status == 204:
                                     logging.debug(f"kernel {kid} deleted")
                                 else:
